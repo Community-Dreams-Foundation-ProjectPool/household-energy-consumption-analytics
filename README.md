@@ -100,6 +100,8 @@ Detailed inspection notes are in [`docs/Household_Energy_Dataset_Preliminary_Ins
 2. Extract `household_power_consumption.txt`.
 3. Place it at `data/raw/household_power_consumption.txt`.
 
+The repo does include a compressed copy of the cleaned data (about 18 MB) and the three small aggregate CSVs, so the hosted dashboard works without running the pipeline. The 127 MB raw file is still excluded.
+
 ## Technologies used
 
 | Area | Tools |
@@ -144,7 +146,7 @@ Filters combine as intersections and update the KPI cards, all eight metrics, an
 - Cached data loading (`@st.cache_data`, keyed on file modification time and size), so rerunning the aggregation refreshes the app automatically.
 - Input validation with readable error messages if a file is missing or malformed.
 - Chart-only fallback: if the aggregate CSVs are absent, the app still shows the six bundled charts.
-- The minute-level preview needs `data/processed/household_energy_cleaned.csv`; without it the rest of the app still works.
+- The minute-level preview reads `data/processed/household_energy_cleaned.csv`, or the compressed `household_energy_cleaned.csv.gz` that ships in the repo so the hosted app can use it. Without either, the rest of the app still works.
 
 ## Folder structure
 

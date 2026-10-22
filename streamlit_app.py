@@ -30,6 +30,8 @@ AGGREGATE_FILES = {
     "monthly": DATA_DIR / "household_energy_monthly.csv",
 }
 CLEANED_FILE = DATA_DIR / "household_energy_cleaned.csv"
+if not CLEANED_FILE.is_file():          # hosted copy ships a compressed version
+    CLEANED_FILE = DATA_DIR / "household_energy_cleaned.csv.gz"
 
 st.set_page_config(
     page_title="Household Energy Analytics",
@@ -106,7 +108,7 @@ def build_sidebar(data: dict[str, pd.DataFrame] | None) -> tuple[bool, dict[str,
         min_day = daily["period_start"].min().date()
         max_day = daily["period_start"].max().date()
         st.markdown("### Filter consumption")
-        st.button("↺ Reset filters", on_click=clear_filters, use_container_width=True)
+        st.button("↺ Reset filters", on_click=clear_filters, width="stretch")
         dates = st.date_input(
             "Date range (inclusive)", value=(min_day, max_day),
             min_value=min_day, max_value=max_day, key="energy_date_range",
@@ -191,17 +193,17 @@ def show_trends(data: dict[str, pd.DataFrame] | None, enabled: bool) -> None:
         return
     daily, monthly = data["daily"], data["monthly"]
     st.markdown("#### Daily observed energy")
-    st.line_chart(daily, x="period_start", y="observed_energy_kwh", use_container_width=True)
+    st.line_chart(daily, x="period_start", y="observed_energy_kwh", width="stretch")
     n_incomplete = int((~daily["is_complete"]).sum())
     explain(f"Daily energy (kWh) from available readings. {n_incomplete:,} of "
             f"{len(daily):,} selected days are incomplete; avoid interpreting "
             "their observed totals as full-day consumption. · Metric 1", enabled)
     st.markdown("#### Monthly average active power")
-    st.line_chart(monthly, x="period_start", y="mean_active_power_kw", use_container_width=True)
+    st.line_chart(monthly, x="period_start", y="mean_active_power_kw", width="stretch")
     explain("Monthly average power (kW), weighted by observed minutes. Each point "
             "uses only days selected by the filters, even for partial months. · Metrics 2 & 5", enabled)
     with st.expander("Monthly observed energy (kWh)", expanded=False):
-        st.bar_chart(monthly, x="period_start", y="observed_energy_kwh", use_container_width=True)
+        st.bar_chart(monthly, x="period_start", y="observed_energy_kwh", width="stretch")
         st.caption("Month buckets can contain only part of a calendar month when filters are active.")
 
 
@@ -213,7 +215,7 @@ def show_patterns(data: dict[str, pd.DataFrame] | None, metrics: dict | None,
         return
     st.markdown("#### Typical active power by day of week")
     profile = daily_weekday_profile(data["daily"])
-    st.bar_chart(profile, x="weekday", y="mean_active_power_kw", use_container_width=True)
+    st.bar_chart(profile, x="weekday", y="mean_active_power_kw", width="stretch")
     explain("Average power by weekday is weighted by available minute readings. "
             "This supports fair comparisons despite unequal day counts. · Metric 6", enabled)
     st.markdown("#### Peak-hour heatmap")
@@ -230,7 +232,7 @@ def show_patterns(data: dict[str, pd.DataFrame] | None, metrics: dict | None,
         ax.set_ylabel("Day of week")
         ax.set_title("Average active power by weekday and hour")
         fig.colorbar(heat, ax=ax, label="Mean active power (kW)")
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
     else:
         st.info("Not enough observed readings to display a heatmap.")
@@ -238,7 +240,7 @@ def show_patterns(data: dict[str, pd.DataFrame] | None, metrics: dict | None,
             "Empty weekday/hour combinations remain blank. · Metrics 3 & 4", enabled)
     st.markdown("#### Weekday versus weekend")
     st.bar_chart(metrics["weekday_weekend"], x="day_type", y="mean_active_power_kw",
-                 use_container_width=True)
+                 width="stretch")
     explain("Mean kW is comparable across groups with different numbers of days. · Metric 6", enabled)
 
 
@@ -248,7 +250,7 @@ def show_advanced(metrics: dict | None, enabled: bool) -> None:
         st.info("No metrics are available for this selection.")
         return
     st.markdown("#### Sub-metering category shares")
-    st.bar_chart(metrics["submetering"], x="category", y="share_pct", use_container_width=True)
+    st.bar_chart(metrics["submetering"], x="category", y="share_pct", width="stretch")
     if metrics["summary"]["submeter_inconsistent"]:
         st.warning("Sub-meter readings exceed total measured energy; residual 'Other' is clipped to zero.")
     explain("Shares of observed energy assigned to kitchen, laundry, water heater/AC "
@@ -258,7 +260,7 @@ def show_advanced(metrics: dict | None, enabled: bool) -> None:
     if anomalies.empty:
         st.info("No high or low anomaly hours were flagged for the selected data.")
     else:
-        st.bar_chart(anomalies, x="month_start", y=["high", "low"], use_container_width=True)
+        st.bar_chart(anomalies, x="month_start", y=["high", "low"], width="stretch")
     explain("Anomaly thresholds are recomputed from the selected hours using "
             "hour-of-day IQR bounds. Short selections can give unstable baselines; "
             "flags do not prove a cause. · Metric 8", enabled)
@@ -290,11 +292,11 @@ def show_calculated_metrics(metrics: dict | None) -> None:
     st.line_chart(metrics["hourly_profile"], x="hour_of_day", y="mean_active_power_kw")
     st.markdown("#### 5. Seasonal and monthly trends")
     st.line_chart(metrics["monthly_trend"], x="period_start", y="mean_active_power_kw")
-    st.dataframe(metrics["seasonal_trend"].round(3), hide_index=True, use_container_width=True)
+    st.dataframe(metrics["seasonal_trend"].round(3), hide_index=True, width="stretch")
     st.markdown("#### 6. Weekday versus weekend")
-    st.dataframe(metrics["weekday_weekend"].round(3), hide_index=True, use_container_width=True)
+    st.dataframe(metrics["weekday_weekend"].round(3), hide_index=True, width="stretch")
     st.markdown("#### 7. Sub-metering shares")
-    st.dataframe(metrics["submetering"].round(3), hide_index=True, use_container_width=True)
+    st.dataframe(metrics["submetering"].round(3), hide_index=True, width="stretch")
     st.markdown("#### 8. Unusual consumption flags")
     a, b, c = st.columns(3)
     a.metric("High anomaly hours", f"{summary['high_anomaly_hours']:,}")
@@ -313,13 +315,13 @@ def show_data_explorer(data: dict[str, pd.DataFrame] | None) -> None:
     df = data[granularity.lower()]
     st.caption(f"{len(df):,} {granularity.lower()} rows match your filters. "
                "The table displays up to the first 2,000 rows; the CSV download includes all selected rows.")
-    st.dataframe(df.head(2000), use_container_width=True, hide_index=True, height=380)
+    st.dataframe(df.head(2000), width="stretch", hide_index=True, height=380)
     st.download_button(
         f"Download selected {granularity.lower()} CSV",
         data=df.to_csv(index=False).encode("utf-8"),
         file_name=f"household_energy_selected_{granularity.lower()}.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
     st.divider()
     st.markdown("#### Preview cleaned minute-level readings")
@@ -340,7 +342,7 @@ def show_data_explorer(data: dict[str, pd.DataFrame] | None) -> None:
             if raw.empty:
                 st.info("No cleaned minute rows match these filters.")
             else:
-                st.dataframe(raw, use_container_width=True, hide_index=True, height=360)
+                st.dataframe(raw, width="stretch", hide_index=True, height=360)
                 st.download_button(
                     "Download minute-level preview CSV", raw.to_csv(index=False).encode("utf-8"),
                     file_name="household_energy_selected_minute_preview.csv", mime="text/csv",
@@ -391,7 +393,7 @@ def show_reference_plot(filename: str, heading: str, description: str,
     st.markdown(f"#### {heading}")
     path = PLOTS / filename
     if path.is_file():
-        st.image(str(path), use_container_width=True)
+        st.image(str(path), width="stretch")
     else:
         st.warning(f"Bundled plot missing: {filename}")
     explain(f"{description} · {metric}", enabled)

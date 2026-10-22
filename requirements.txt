@@ -1,6 +1,6 @@
 # Install with: python -m pip install -r requirements.txt
 # Recent compatible versions are selected by pip for your Python version.
-streamlit>=1.38
+streamlit>=1.66
 pandas>=2.2
 numpy>=1.26
 matplotlib>=3.8
