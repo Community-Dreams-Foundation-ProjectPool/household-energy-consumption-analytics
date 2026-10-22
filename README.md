@@ -100,17 +100,25 @@ Detailed inspection notes are in [`docs/Household_Energy_Dataset_Preliminary_Ins
 2. Extract `household_power_consumption.txt`.
 3. Place it at `data/raw/household_power_consumption.txt`.
 
-The repo does include a compressed copy of the cleaned data (about 18 MB) and the three small aggregate CSVs, so the hosted dashboard works without running the pipeline. The 127 MB raw file is still excluded.
+**What the repository does include**, so the dashboard runs without rebuilding anything:
+
+| File in `data/processed/` | Size | Purpose |
+|---|---|---|
+| `household_energy_hourly.csv`, `household_energy_daily.csv`, `household_energy_monthly.csv` | about 3.2 MB combined | The aggregates the dashboard reads |
+| `household_energy_cleaned.csv.gz` | about 18 MB | Compressed minute-level data for the optional preview in the Data explorer |
+
+The 127 MB raw file and the two largest generated files (`household_energy_cleaned.csv`, about 112 MB, and `household_energy_featured.csv`, about 270 MB) are excluded from Git and are recreated by `src/setup_data.py`.
 
 ## Technologies used
 
 | Area | Tools |
 |---|---|
-| Language | Python 3.10 or newer |
+| Language | Python 3.10 or newer (tested on 3.11) |
 | Data processing | pandas, NumPy |
 | Visualization | Matplotlib, seaborn |
-| Dashboard | Streamlit |
-| Testing | `unittest`|
+| Dashboard | Streamlit 1.66 or newer |
+| Testing | `unittest` |
+| Hosting | Streamlit Community Cloud |
 | Version control | Git and GitHub |
 
 Exact dependencies are in [`requirements.txt`](requirements.txt).
@@ -145,6 +153,7 @@ Filters combine as intersections and update the KPI cards, all eight metrics, an
 
 - Cached data loading (`@st.cache_data`, keyed on file modification time and size), so rerunning the aggregation refreshes the app automatically.
 - Input validation with readable error messages if a file is missing or malformed.
+- Each interactive chart has Streamlit's built-in toolbar to view its data as a table, download it, copy it, or open the chart full screen.
 - Chart-only fallback: if the aggregate CSVs are absent, the app still shows the six bundled charts.
 - The minute-level preview reads `data/processed/household_energy_cleaned.csv`, or the compressed `household_energy_cleaned.csv.gz` that ships in the repo so the hosted app can use it. Without either, the rest of the app still works.
 
@@ -153,7 +162,7 @@ Filters combine as intersections and update the KPI cards, all eight metrics, an
 ```
 household-energy-consumption-analytics/
 ├── README.md
-├── LICENSE                      
+├── LICENSE
 ├── requirements.txt
 ├── .gitignore
 ├── streamlit_app.py             # dashboard entry point
@@ -166,7 +175,8 @@ household-energy-consumption-analytics/
 │   └── household_energy_visualization.py
 ├── data/
 │   ├── raw/                     # raw UCI file goes here (not tracked by Git)
-│   └── processed/               # generated CSVs (not tracked by Git)
+│   └── processed/               # hourly/daily/monthly CSVs and the compressed cleaned file are tracked;
+│                                # the two largest generated files are not
 ├── plots/                       # the six generated charts (PNG)
 ├── docs/                        # research, inspection, metric definitions, findings report
 │   └── screenshots/             # dashboard screenshots used in this README
@@ -178,12 +188,12 @@ household-energy-consumption-analytics/
 
 ## Prerequisites
 
-- **Python 3.10 or newer**, available on the command line. Check with `python --version` (use `python3` on macOS/Linux).
+- **Python 3.10 or newer**, available on the command line. Check with `python --version` (use `python3` on macOS/Linux). The project was tested on Python 3.11.
 - **Git**.
-- **About 1 GB of free disk space** for the raw file and generated CSVs.
-- **An internet connection** for the first run (packages and the dataset).
+- **About 1 GB of free disk space** if you rebuild the data from the raw file; much less if you only run the dashboard.
+- **An internet connection** to install the packages, and to download the dataset if you rebuild it.
 
-Time estimate: about 10 to 15 minutes on a typical connection, most of it the dataset download.
+Time estimate: about 5 minutes to install and launch the dashboard, or 10 to 15 minutes if you also rebuild the data from the raw UCI file (most of that is the download).
 
 ## Quick start
 
@@ -226,13 +236,17 @@ Optional check that everything imports:
 python -c "import pandas, numpy, matplotlib, seaborn, streamlit; print('OK')"
 ```
 
-### 4. Prepare the dataset
+### 4. Prepare the dataset (optional shortcut: skip to step 5)
+
+The repository already contains the processed files the dashboard needs (see [Getting the data](#getting-the-data)), so you can go straight to step 5. Run this step to rebuild everything from the original UCI data, including the large intermediate files and the six charts:
 
 ```bash
 python src/setup_data.py
 ```
 
 This downloads the UCI file into `data/raw/`, then runs cleaning, aggregation and chart generation. It takes about a minute after the download. Re-running it skips work that is already done.
+
+Rebuilding overwrites the tracked files in `data/processed/` and `plots/`. If Git then lists them as modified (for example, charts can differ slightly between library versions), do not commit them unless the data really changed. `git restore data/processed plots` puts the originals back.
 
 ### 5. Launch the dashboard
 
@@ -279,7 +293,7 @@ python -m unittest discover -s tests -v
 
 **Live dashboard:** _link will be added once the app is deployed_
 
-Screenshots 
+### Screenshots
 
 ![Consumption trends with filters](docs/screenshots/consumption-trends.png)
 
@@ -288,6 +302,31 @@ Screenshots
 ![Calculated metrics](docs/screenshots/calculated-metrics.png)
 
 ![Data explorer](docs/screenshots/data-explorer.png)
+
+### Deploying to Streamlit Community Cloud
+
+The repository is ready to deploy as it is: `requirements.txt` lists the dependencies, and the data files the dashboard needs are included. No secrets or environment variables are required.
+
+1. Make sure Streamlit can read the repository: it must be public, or the organization owner must grant Streamlit access to it.
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+3. Click **Create app**, then **Deploy a public app from GitHub**.
+4. In **GitHub URL**, paste the link to the main file:
+   `https://github.com/Community-Dreams-Foundation-ProjectPool/household-energy-consumption-analytics/blob/main/streamlit_app.py`
+5. Optionally set the **App URL**, for example `household-energy-dashboard`.
+6. Open **Advanced settings**, choose **Python 3.11**, and leave the secrets box empty.
+7. Click **Deploy**. The first build takes a few minutes.
+
+Once the app loads, check that the KPI cards show numbers, a sidebar filter changes them, and the Data explorer's minute-level preview shows a table.
+
+**Refreshing the hosted data.** If the pipeline or the data changes, rebuild locally, recreate the compressed file, and commit the four files in `data/processed/` that are tracked. Streamlit redeploys automatically after a push:
+
+```bash
+python src/setup_data.py
+python -c "import gzip,shutil; shutil.copyfileobj(open('data/processed/household_energy_cleaned.csv','rb'), gzip.open('data/processed/household_energy_cleaned.csv.gz','wb',compresslevel=9))"
+git add data/processed plots
+git commit -m "Refresh processed data"
+git push
+```
 
 ## Roadmap
 
@@ -298,17 +337,20 @@ Screenshots
 - [x] Streamlit app with cached loading and a metrics tab
 - [x] Interactive filters (date range, year, month, season, day type) and a data explorer with CSV export
 - [ ] Hosted deployment
-- [ ] Download buttons for the charts themselves
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | `ModuleNotFoundError` when running a script | The virtual environment is not active, or your editor is using a different Python. Activate `.venv` and select it as the interpreter. |
+| A Streamlit error mentioning `width` when the app loads | Your Streamlit is probably older than 1.66. Run `pip install -r requirements.txt` again, or `pip install --upgrade streamlit`. |
 | UCI download fails or times out | Download the ZIP manually (see [Getting the data](#getting-the-data)), then rerun `python src/setup_data.py`. |
-| App shows charts but no numbers | The processed CSVs are missing. Run `python src/setup_data.py`. |
+| App shows charts but no numbers | The processed CSVs are missing. Run `python src/setup_data.py`, or `git restore data/processed` if you deleted the tracked files. |
+| Data explorer says the cleaned minute-level file is not present | Neither `household_energy_cleaned.csv` nor `household_energy_cleaned.csv.gz` is in `data/processed/`. Run `python src/setup_data.py`. The rest of the app works without it. |
+| Git lists `data/processed` or `plots` files as modified after running the pipeline | The regenerated files differ slightly from the committed ones. Run `git restore data/processed plots` unless you intend to update them. |
 | Matplotlib fails with a DLL or "Application Control" error on Windows | A security policy is blocking the library. Reinstall in a fresh virtual environment, or run from WSL or Anaconda. |
 | Port 8501 is already in use | Add `--server.port 8502` to the `streamlit run` command. |
+| Streamlit Cloud cannot find the repository | The repository is private or Streamlit has not been granted access to the organization. See [Deploying to Streamlit Community Cloud](#deploying-to-streamlit-community-cloud). |
 
 ## License
 
